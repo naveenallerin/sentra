@@ -1,6 +1,10 @@
 import cv2
+from ultralytics import YOLO
 
-def capture_stream(source=0):  # Default to webcam (0), but can use RTSP URL
+def capture_and_detect(source=0):  # Default to webcam (0), can use RTSP URL
+    # Load the YOLOv8 model
+    model = YOLO('yolov8n.pt')
+
     # Connect to the camera or stream
     cap = cv2.VideoCapture(source)
     if not cap.isOpened():
@@ -15,8 +19,14 @@ def capture_stream(source=0):  # Default to webcam (0), but can use RTSP URL
             print("Error: Failed to capture frame")
             break
 
-        # Show the frame in a window
-        cv2.imshow("Camera Feed", frame)
+        # Perform detection
+        results = model(frame)
+
+        # Draw detections on the frame
+        annotated_frame = results[0].plot()
+
+        # Show the frame with detections
+        cv2.imshow("Camera Feed with Vehicle Detection", annotated_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
@@ -26,4 +36,4 @@ def capture_stream(source=0):  # Default to webcam (0), but can use RTSP URL
 
 if __name__ == "__main__":
     # Use webcam (0) for testing, or replace with RTSP URL like "rtsp://your_camera_ip/stream"
-    capture_stream(0)  # Change to RTSP URL when you have one
+    capture_and_detect(0)  # Change to RTSP URL when you have one
