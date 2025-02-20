@@ -2,8 +2,9 @@ import cv2
 from ultralytics import YOLO
 import csv
 from datetime import datetime
+from playsound import playsound
 
-def capture_and_detect_with_analytics(source=0, log_file="vehicle_logs.csv"):
+def capture_and_detect_with_alerts(source=0, log_file="object_logs.csv", alert_sound="alert_sound.mp3"):
     # Load the YOLOv8 model
     model = YOLO('yolov8n.pt')
 
@@ -15,8 +16,8 @@ def capture_and_detect_with_analytics(source=0, log_file="vehicle_logs.csv"):
 
     print(f"Successfully connected to {source}. Press 'q' to quit.")
 
-    # Initialize vehicle counter and log list
-    vehicle_count = 0
+    # Initialize object counter and log list
+    object_count = 0
     logs = []
 
     while True:
@@ -30,14 +31,12 @@ def capture_and_detect_with_analytics(source=0, log_file="vehicle_logs.csv"):
 
         # Process each detection
         for result in results[0].boxes:
-            class_id = int(result.cls[0])  # Class ID (e.g., 2 for car, 7 for truck)
+            class_id = int(result.cls[0])  # Class ID
             confidence = float(result.conf[0])  # Confidence score
-            class_name = model.names[class_id]  # Get class name (e.g., "car")
+            class_name = model.names[class_id]  # Get class name (e.g., "person", "tv")
 
-            # Only log vehicles (filter by class names)
-            vehicle_classes = ["car", "truck", "bus", "motorcycle"]
-            if class_name in vehicle_classes and confidence > 0.5:  # Confidence threshold
-                vehicle_count += 1
+            if confidence > 0.5:  # Confidence threshold
+                object_count += 1
                 x1, y1, x2, y2 = map(int, result.xyxy[0])  # Bounding box coordinates
                 center_x = (x1 + x2) // 2
                 center_y = (y1 + y2) // 2
@@ -46,7 +45,7 @@ def capture_and_detect_with_analytics(source=0, log_file="vehicle_logs.csv"):
                 # Log the detection
                 log_entry = {
                     "timestamp": timestamp,
-                    "vehicle_type": class_name,
+                    "object_type": class_name,
                     "confidence": confidence,
                     "center_x": center_x,
                     "center_y": center_y
@@ -58,21 +57,33 @@ def capture_and_detect_with_analytics(source=0, log_file="vehicle_logs.csv"):
                 label = f"{class_name} {confidence:.2f}"
                 cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-        # Display vehicle count on frame
-        cv2.putText(frame, f"Vehicles: {vehicle_count}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                # Trigger alert for specific objects (simulate vehicles for testing)
+                alert_classes = ["person", "tv", "truck", "bus"]  # Add real vehicles when testing outdoors
+                if class_name in alert_classes:
+                    print(f"ALERT: Detected {class_name}!")
+                    try:
+                        playsound(alert_sound)  # Play the alert sound
+                    except Exception as e:
+                        print(f"Error playing sound: {e}")
+                        # Fallback: Use macOS text-to-speech
+                        import os
+                        os.system("say 'Alert!'")
+
+        # Display object count on frame
+        cv2.putText(frame, f"Objects: {object_count}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
         # Show the frame with detections
-        cv2.imshow("Camera Feed with Vehicle Detection", frame)
+        cv2.imshow("Camera Feed with Object Detection and Alerts", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     # Save logs to CSV
     with open(log_file, mode='w', newline='') as file:
-        writer = csv.DictWriter(file, fieldnames=["timestamp", "vehicle_type", "confidence", "center_x", "center_y"])
+        writer = csv.DictWriter(file, fieldnames=["timestamp", "object_type", "confidence", "center_x", "center_y"])
         writer.writeheader()
         writer.writerows(logs)
 
-    print(f"Logged {vehicle_count} vehicles to {log_file}")
+    print(f"Logged {object_count} objects to {log_file}")
 
     # Clean up
     cap.release()
@@ -80,4 +91,4 @@ def capture_and_detect_with_analytics(source=0, log_file="vehicle_logs.csv"):
 
 if __name__ == "__main__":
     # Use webcam (0) for testing, or replace with RTSP URL like "rtsp://your_camera_ip/stream"
-    capture_and_detect_with_analytics(0)  # Change to RTSP URL when you have one
+    capture_and_detect_with_alerts(0)  # Change to RTSP URL when you have one
