@@ -2,9 +2,39 @@ import cv2
 from ultralytics import YOLO
 import csv
 from datetime import datetime
-from playsound import playsound
+import requests
+import logging
 
-def capture_and_detect_with_alerts(source=0, log_file="object_logs.csv", alert_sound="alert_sound.mp3"):
+# Configure logging for monitoring
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def send_data_to_backend(data, api_url="http://localhost:3000/api/v1/traffic_data", api_key="my_secret_api_key"):
+    """
+    Send processed data to the backend using HTTPS POST with API key authentication.
+
+    Args:
+        data (dict): Processed data to send (e.g., vehicle/object counts, types).
+        api_url (str): Backend API endpoint URL.
+        api_key (str): API key for authentication.
+
+    Returns:
+        bool: True if data was sent successfully, False otherwise.
+    """
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {api_key}'
+    }
+    
+    try:
+        response = requests.post(api_url, json=data, headers=headers, timeout=5)
+        response.raise_for_status()
+        logging.info("Data sent successfully: %s", response.json())
+        return True
+    except requests.exceptions.RequestException as e:
+        logging.error("Failed to send data: %s", e)
+        return False
+
+def capture_and_detect_with_streaming(source=0, log_file="object_logs.csv"):
     # Load the YOLOv8 model
     model = YOLO('yolov8n.pt')
 
@@ -42,7 +72,7 @@ def capture_and_detect_with_alerts(source=0, log_file="object_logs.csv", alert_s
                 center_y = (y1 + y2) // 2
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                # Log the detection
+                # Log the detection locally
                 log_entry = {
                     "timestamp": timestamp,
                     "object_type": class_name,
@@ -57,23 +87,21 @@ def capture_and_detect_with_alerts(source=0, log_file="object_logs.csv", alert_s
                 label = f"{class_name} {confidence:.2f}"
                 cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-                # Trigger alert for specific objects (simulate vehicles for testing)
-                alert_classes = ["person", "tv", "truck", "bus"]  # Add real vehicles when testing outdoors
-                if class_name in alert_classes:
-                    print(f"ALERT: Detected {class_name}!")
-                    try:
-                        playsound(alert_sound)  # Play the alert sound
-                    except Exception as e:
-                        print(f"Error playing sound: {e}")
-                        # Fallback: Use macOS text-to-speech
-                        import os
-                        os.system("say 'Alert!'")
+                # Send detection data to backend (simulate vehicles for testing)
+                data_to_send = {
+                    "timestamp": timestamp,
+                    "device_id": "edge_001",  # Simulated edge device ID
+                    "object_type": class_name,
+                    "confidence": confidence,
+                    "location": {"x": center_x, "y": center_y}
+                }
+                send_data_to_backend(data_to_send)
 
         # Display object count on frame
         cv2.putText(frame, f"Objects: {object_count}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
         # Show the frame with detections
-        cv2.imshow("Camera Feed with Object Detection and Alerts", frame)
+        cv2.imshow("Camera Feed with Object Detection and Streaming", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
@@ -91,4 +119,4 @@ def capture_and_detect_with_alerts(source=0, log_file="object_logs.csv", alert_s
 
 if __name__ == "__main__":
     # Use webcam (0) for testing, or replace with RTSP URL like "rtsp://your_camera_ip/stream"
-    capture_and_detect_with_alerts(0)  # Change to RTSP URL when you have one
+    capture_and_detect_with_streaming(0)  # Change to RTSP URL when you have one
